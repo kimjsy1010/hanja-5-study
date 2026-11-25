@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172f42">
+  <meta name="description" content="대한검정회 5급 선정한자 250자의 훈음을 두 방향으로 익히는 학습 도구">
+  <title>한자 5급 마스터</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./hanja-data.js"></script>
+  <script defer src="./quiz.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <button class="brand" id="brand" type="button" aria-label="한자 5급 마스터 홈">
+        <span class="brand-mark" aria-hidden="true">字</span>
+        <span>한자 5급 마스터</span>
+      </button>
+      <button class="library-link" id="open-library" type="button">내가 익힌 한자 <strong id="header-mastery">0</strong></button>
+    </div>
+  </header>
+  <section class="cloud-panel" id="cloud-panel" aria-label="학습 계정" hidden>
+    <div class="cloud-copy">
+      <p id="cloud-status" role="status"></p>
+      <p id="cloud-message" role="status" hidden></p>
+    </div>
+    <div class="cloud-actions">
+      <button class="quiet" id="cloud-action" type="button">Google 로그인</button>
+      <button class="quiet" id="cloud-retry" type="button" hidden>다시 연결</button>
+      <button class="quiet" id="cloud-import" type="button" hidden>이 브라우저 기록 가져오기</button>
+    </div>
+  </section>
+  <main id="app" class="app-shell"></main>
+  <noscript>한자 5급 마스터를 사용하려면 브라우저에서 자바스크립트를 켜 주세요.</noscript>
+  <template id="home-template">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="hero-label">대한검정회 선정한자 250자</p>
+        <h1 id="hero-title" tabindex="-1">한자 5급<br>마스터</h1>
+        <p class="hero-help">글자마다 3번 연속 맞혀 보세요.</p>
+      </div>
+      <div class="hero-art" aria-hidden="true"><span>成</span></div>
+    </section>
+    <section class="score-card" aria-label="누적 적립금">
+      <div class="score-total"><span>누적 적립금</span><strong data-correct="total">0원</strong></div>
+      <div class="score-direction"><span>한자 → 훈음</span><strong data-correct="character">0원</strong></div>
+      <div class="score-direction"><span>훈음 → 한자</span><strong data-correct="meaning">0원</strong></div>
+      <p class="score-note">정답 1문제당 1원이 적립돼요.</p>
+    </section>
+    <section class="mode-grid" aria-label="학습 방향 선택">
+      <article class="mode-card mode-blue">
+        <div class="mode-icon" aria-hidden="true">字</div>
+        <h2>한자 → 훈음</h2>
+        <p>한자를 보고 뜻과 소리를 고르세요.</p>
+        <div class="mode-progress"><span>익힌 한자</span><strong data-progress-text="character"></strong></div>
+        <progress data-progress="character" max="250" value="0" aria-label="한자에서 훈음 방향 학습 진도"></progress>
+        <button class="primary" type="button" data-mode="character">한자 → 훈음 시작</button>
+      </article>
+      <article class="mode-card mode-green">
+        <div class="mode-icon" aria-hidden="true">음</div>
+        <h2>훈음 → 한자</h2>
+        <p>뜻과 소리를 보고 한자를 고르세요.</p>
+        <div class="mode-progress"><span>익힌 한자</span><strong data-progress-text="meaning"></strong></div>
+        <progress data-progress="meaning" max="250" value="0" aria-label="훈음에서 한자 방향 학습 진도"></progress>
+        <button class="primary" type="button" data-mode="meaning">훈음 → 한자 시작</button>
+      </article>
+    </section>
+    <p class="storage-note" id="storage-note">학습 진도는 이 브라우저에 저장됩니다.</p>
+  </template>
+</body>
+</html>
