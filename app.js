@@ -169,8 +169,8 @@
       meter.max = candidate.entries.length;
       meter.value = 0;
       meter.setAttribute("aria-hidden", "true");
-      choice.append(node("strong", "", candidate.label),
-        node("span", "grade-scope", candidate.legacy ? "5~8급 한자 전체" : "신출 한자"), status, meter);
+      const scope = candidate.legacy ? "5~8급 한자 전체" : `신출 한자 ${candidate.entries.length}자`;
+      choice.append(node("strong", "", candidate.label), node("span", "grade-scope", scope), status, meter);
       grid.append(choice);
     }
     const sources = node("a", "grade-sources", "자료 출처");
