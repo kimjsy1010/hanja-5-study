@@ -170,7 +170,7 @@
       meter.value = 0;
       meter.setAttribute("aria-hidden", "true");
       choice.append(node("strong", "", candidate.label),
-        node("span", "grade-scope", candidate.legacy ? "전체 선정한자" : "신출 한자"), status, meter);
+        node("span", "grade-scope", candidate.legacy ? "5~8급 한자 전체" : "신출 한자"), status, meter);
       grid.append(choice);
     }
     const sources = node("a", "grade-sources", "자료 출처");
