@@ -36,19 +36,27 @@ button:disabled { cursor: default; }
 .primary:disabled { opacity: .6; }
 .app-shell { width: min(100% - 36px, 960px); margin: 32px auto 40px; }
 .grade-picker { display: grid; gap: clamp(12px, 2.5vw, 24px); }
-.grade-intro { padding: clamp(22px, 4vw, 46px); color: #fff; background: linear-gradient(120deg, #142a3a, #245269); border-radius: 24px; }
+.grade-intro { display: flex; align-items: center; justify-content: space-between; gap: clamp(16px, 4vw, 42px); padding: clamp(22px, 4vw, 46px); color: #fff; background: linear-gradient(120deg, #142a3a, #245269); border-radius: 24px; }
 .grade-intro h1 { font-size: clamp(2.1rem, 4.4vw, 3.5rem); letter-spacing: -.045em; line-height: 1.15; }
 .grade-intro p { color: #e5edf0; margin-top: 8px; font-size: clamp(1rem, 1.7vw, 1.2rem); }
+.grade-balance { flex-shrink: 0; display: grid; gap: 2px; min-width: clamp(155px, 19vw, 220px); padding: 12px 17px; border: 1px solid #ffffff55; border-radius: 14px; background: #ffffff12; }
+.grade-balance span { font-weight: 700; color: #e5edf0; }
+.grade-balance strong { color: #ffdc9e; font-size: clamp(1.65rem, 3.2vw, 2.6rem); font-variant-numeric: tabular-nums; line-height: 1.24; }
 .grade-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(10px, 1.6vw, 18px); }
-.grade-choice { min-height: clamp(96px, 14vw, 156px); display: grid; align-content: center; justify-items: start; gap: 5px; padding: clamp(12px, 2vw, 24px); border: 1px solid var(--line); border-radius: 18px; background: #fff; color: var(--blue); text-align: left; }
+.grade-choice { min-height: clamp(120px, 16vw, 172px); display: grid; align-content: center; gap: 5px; padding: clamp(12px, 1.75vw, 22px); border: 1px solid var(--line); border-radius: 18px; background: #fff; color: var(--blue); text-align: left; }
 .grade-choice:first-child { background: #eaf2f8; border-color: #bed1de; }
 .grade-choice:hover { background: #e5f0f6; border-color: var(--blue); }
 .grade-choice strong { font-size: clamp(1.45rem, 2.8vw, 2.1rem); line-height: 1.18; }
-.grade-choice span { font-size: clamp(.9rem, 1.4vw, 1.08rem); color: var(--muted); white-space: nowrap; }
+.grade-scope { font-size: clamp(.875rem, 1.4vw, 1rem); color: var(--muted); }
+.grade-mastery { font-size: clamp(.875rem, 1.35vw, 1.05rem); color: var(--ink); }
+.grade-mastery b { color: var(--blue); font-size: 1.15em; font-variant-numeric: tabular-nums; }
+.grade-meter { margin-top: 3px; height: 6px; }
 .grade-sources { justify-self: end; font-size: .85rem; color: var(--muted); }
 .grade-back { color: #fff; background: transparent; border: 1px solid #ffffff77; border-radius: 9px; min-height: 44px; padding: 5px 12px; margin-bottom: 12px; font-weight: 700; }
 .grade-back:hover { background: #ffffff21; }
 @media (max-width: 650px) {
+  .grade-intro { align-items: stretch; flex-direction: column; }
+  .grade-balance { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .grade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grade-choice:first-child { grid-column: 1 / -1; }
 }

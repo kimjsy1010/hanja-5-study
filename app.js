@@ -57,17 +57,27 @@
   }
 
   function refreshProgress() {
-    if (!account.uid) progress = loadGuest() ?? progress;
+    if (!account.uid && level) refreshGuest(level);
+    progress = progressFor(level) ?? emptyProgress();
+  }
+
+  function refreshGuest(target) {
+    memoryProgress.set(target.id, loadGuest(target) ?? emptyProgress());
+  }
+
+  function progressFor(target) {
+    if (!target || account.phase === "initializing") return null;
+    return account.uid ? account.progressByLevel?.[target.id] : memoryProgress.get(target.id);
   }
 
   async function storeAnswer(active, selected) {
+    const target = level;
     const correct = selected.id === active.answer.id;
     if (account.uid) {
       if (account.phase !== "ready") throw new Error("Study account unavailable.");
-      const count = await cloud.answer(active.mode, active.answer.id, correct);
+      const count = await cloud.answer(target, active.mode, active.answer.id, correct);
       return {correct, count};
     }
-    const target = level;
     const update = () => {
       const local = loadGuest(target) ?? emptyProgress();
       const count = record(local, active.mode, active.answer.id, correct);
@@ -90,12 +100,26 @@
 
   function updateHeader() {
     libraryButton.hidden = !level;
-    mastery.textContent = completed(entries, progress).length;
-    const counts = progress.correctCounts;
-    const total = counts.character + counts.meaning;
+    libraryButton.disabled = !canStudy();
+    const current = progressFor(level);
+    mastery.textContent = current ? completed(entries, current).length : "—";
+    const snapshots = levels.map(candidate => progressFor(candidate));
+    const total = snapshots.every(Boolean)
+      ? snapshots.reduce((sum, {correctCounts}) => sum + correctCounts.character + correctCounts.meaning, 0)
+      : null;
     for (const number of app.querySelectorAll("[data-correct]")) {
-      const count = number.dataset.correct === "total" ? total : counts[number.dataset.correct];
-      number.textContent = count.toLocaleString("ko-KR") + "원";
+      const field = number.dataset.correct;
+      const count = field === "total" ? total : current?.correctCounts[field];
+      number.textContent = count == null ? "—" : count.toLocaleString("ko-KR") + "원";
+    }
+    if (view === "grades") {
+      for (const [index, candidate] of levels.entries()) {
+        const card = app.querySelector(`[data-grade="${candidate.id}"]`);
+        const saved = snapshots[index];
+        const known = saved ? completed(candidate.entries, saved).length : null;
+        card.querySelector("[data-grade-mastery]").textContent = known ?? "—";
+        card.querySelector("progress").value = known ?? 0;
+      }
     }
   }
 
@@ -122,16 +146,31 @@
     entries = [];
     question = null;
     progress = emptyProgress();
+    if (!account.uid) levels.forEach(refreshGuest);
     const page = node("section", "grade-picker");
     const intro = node("div", "grade-intro");
     const heading = node("h1", "", "어떤 급수를 공부할까요?");
-    intro.append(heading, node("p", "", "대한검정회 선정한자를 급수별로 익혀요."));
+    const description = node("div");
+    description.append(heading, node("p", "", "대한검정회 선정한자를 급수별로 익혀요."));
+    const balance = node("div", "grade-balance");
+    const amount = node("strong", "", "—");
+    amount.dataset.correct = "total";
+    balance.append(node("span", "", "전체 누적 적립금"), amount);
+    intro.append(description, balance);
     const grid = node("div", "grade-grid");
     for (const candidate of levels) {
       const choice = button("", "grade-choice", () => selectLevel(candidate));
       choice.dataset.grade = candidate.id;
+      const known = node("b", "", "—");
+      known.dataset.gradeMastery = "";
+      const status = node("span", "grade-mastery");
+      status.append("익힌 한자 ", known, ` / ${candidate.entries.length}`);
+      const meter = node("progress", "grade-meter");
+      meter.max = candidate.entries.length;
+      meter.value = 0;
+      meter.setAttribute("aria-hidden", "true");
       choice.append(node("strong", "", candidate.label),
-        node("span", "", `${candidate.legacy ? "전체" : "신출"} ${candidate.entries.length}자`));
+        node("span", "grade-scope", candidate.legacy ? "전체 선정한자" : "신출 한자"), status, meter);
       grid.append(choice);
     }
     const sources = node("a", "grade-sources", "자료 출처");
@@ -139,7 +178,6 @@
     page.append(intro, grid, sources);
     setView("grades", page);
     cloudMessage.hidden = true;
-    cloud?.select(null);
     updateCloudPanel();
     if (moveFocus) focus(heading);
   }
@@ -148,11 +186,8 @@
     level = candidate;
     entries = candidate.entries;
     question = null;
-    progress = account.uid ? emptyProgress() : loadGuest() ?? emptyProgress();
-    if (account.uid) account = {...account, phase: "loading"};
     cloudMessage.hidden = true;
     showHome();
-    cloud?.select(level);
     updateCloudPanel();
   }
 
@@ -173,7 +208,8 @@
       const bar = fragment.querySelector(`[data-progress="${mode}"]`);
       bar.max = entries.length;
       bar.value = count;
-      fragment.querySelector(`[data-progress-text="${mode}"]`).textContent = `${count} / ${entries.length}`;
+      fragment.querySelector(`[data-progress-text="${mode}"]`).textContent =
+        `${progressFor(level) ? count : "—"} / ${entries.length}`;
       const start = fragment.querySelector(`[data-mode="${mode}"]`);
       start.disabled = !canStudy();
       if (count === entries.length) start.textContent = `${modes[mode].name} 완료`;
@@ -281,7 +317,7 @@
     const score = node("p", "quiz-score");
     const scoreCount = node("strong", "", "0원");
     scoreCount.dataset.correct = "total";
-    score.append("누적 적립금 ", scoreCount);
+    score.append("전체 누적 적립금 ", scoreCount);
     const progressBar = node("progress", "quiz-progress-bar");
     progressBar.max = entries.length;
     progressBar.setAttribute("aria-label", "이 방향에서 익힌 한자 수");
@@ -381,11 +417,13 @@
     options[Number(event.key) - 1].click();
   });
   window.addEventListener("storage", event => {
-    if (!level || (event.key !== level.key && event.key !== null)) return;
-    refreshProgress();
-    updateHeader();
+    const relevant = levels.filter(candidate => event.key === candidate.key || event.key === null);
+    if (!relevant.length) return;
+    relevant.forEach(refreshGuest);
+    if (!account.uid && level) progress = progressFor(level) ?? emptyProgress();
     updateCloudPanel();
-    if (view === "home") showHome(false);
+    if (view === "home" && !account.uid && relevant.includes(level)) showHome(false);
+    else updateHeader();
   });
 
   function updateCloudPanel() {
@@ -412,14 +450,15 @@
 
   function onAccountChange(next) {
     const switched = account.uid !== next.uid;
+    const previousPhase = account.phase;
+    const previousProgress = progressFor(level);
     account = next;
-    if (switched) progress = emptyProgress();
-    if (next.progress) progress = next.progress;
-    refreshProgress();
+    if (!next.uid) levels.forEach(refreshGuest);
+    progress = progressFor(level) ?? emptyProgress();
     updateCloudPanel();
-    if (!level) return;
-    if (switched || view === "home") showHome(false);
-    else if (view === "library") showLibrary();
+    const activeChanged = previousProgress !== progressFor(level);
+    if (level && (switched || (view === "home" && (activeChanged || previousPhase !== next.phase)))) showHome(false);
+    else if (view === "library" && activeChanged) showLibrary();
     else updateHeader();
   }
 
@@ -450,17 +489,19 @@
     : cloud.login().then(() => undefined)));
   cloudRetry.addEventListener("click", () => cloudInteraction(() => cloud.retry()));
   cloudImport.addEventListener("click", () => cloudInteraction(async () => {
-    const imported = await cloud.importGuest(loadGuest() ?? emptyProgress());
+    const imported = await cloud.importGuest(level, loadGuest() ?? emptyProgress());
     return imported ? `이 브라우저의 학습 기록 ${imported}개를 가져왔습니다.` : "가져올 새 학습 기록이 없습니다.";
   }));
-  showGrades(false);
-  if (/^https?:$/.test(location.protocol)) {
+  const usesCloud = /^https?:$/.test(location.protocol);
+  if (usesCloud) {
     account = {phase: "initializing", uid: null};
     cloudPanel.hidden = false;
+  }
+  showGrades(false);
+  if (usesCloud) {
     updateCloudPanel();
-    import("./firebase-sync.js?v=grades-1").then(({connectProgress}) => {
-      cloud = connectProgress(onAccountChange);
-      cloud.select(level);
+    import("./firebase-sync.js?v=overview-1").then(({connectDashboard}) => {
+      cloud = connectDashboard(levels, onAccountChange);
       updateCloudPanel();
     }).catch(() => onAccountChange({phase: "unavailable", uid: null}));
   }
