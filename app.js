@@ -1,10 +1,12 @@
 (() => {
   const {modes, goal, prepare, emptyProgress, parseProgress, streak, record, completed, makeQuestion} = HanjaQuiz;
+  const rewards = {grade5: 1, jun4: 2, grade4: 4, jun3: 8, grade3: 16};
   const levels = [
     {id: "grade5", label: "5급", raw: window.HANJA_DATA},
     ...Object.entries(window.HANJA_LEVEL_DATA ?? {}).map(([id, raw]) => ({id, label: raw[0].grade, raw})),
   ].map(({id, label, raw}) => ({
     id, label, entries: prepare(raw), legacy: id === "grade5",
+    reward: rewards[id] ?? 1,
     key: id === "grade5" ? "hanja-five-progress-v1" : `hanja-progress-${id}-v1`,
   }));
   let level = null;
@@ -105,12 +107,13 @@
     mastery.textContent = current ? completed(entries, current).length : "—";
     const snapshots = levels.map(candidate => progressFor(candidate));
     const total = snapshots.every(Boolean)
-      ? snapshots.reduce((sum, {correctCounts}) => sum + correctCounts.character + correctCounts.meaning, 0)
+      ? snapshots.reduce((sum, {correctCounts}, index) =>
+        sum + (correctCounts.character + correctCounts.meaning) * levels[index].reward, 0)
       : null;
     for (const number of app.querySelectorAll("[data-correct]")) {
       const field = number.dataset.correct;
-      const count = field === "total" ? total : current?.correctCounts[field];
-      number.textContent = count == null ? "—" : count.toLocaleString("ko-KR") + "원";
+      const amount = field === "total" ? total : (current ? current.correctCounts[field] * level.reward : null);
+      number.textContent = amount == null ? "—" : amount.toLocaleString("ko-KR") + "원";
     }
     if (view === "grades") {
       for (const [index, candidate] of levels.entries()) {
@@ -202,6 +205,7 @@
     fragment.querySelector(".hero-copy").prepend(button("급수 선택", "grade-back", () => showGrades()));
     fragment.querySelector(".hero-label").textContent = `대한검정회 ${scope} ${entries.length}자`;
     fragment.getElementById("hero-title").textContent = `${level.label} 학습`;
+    fragment.querySelector(".score-note").textContent = `정답 1문제당 ${level.reward}원이 적립돼요.`;
     fragment.getElementById("storage-note").replaceWith(storageNotice());
     for (const mode of Object.keys(modes)) {
       const count = completed(entries, progress, mode).length;
@@ -374,7 +378,7 @@
     busy = false;
     const {correct, count} = result;
     const title = node("h2", "feedback-title", correct ? (count === goal ? "이 방향에서 익혔어요!" : "정답이에요!") : "정답을 확인해 보세요");
-    if (correct) title.append(node("span", "score-gain", "+1원"));
+    if (correct) title.append(node("span", "score-gain", `+${level.reward}원`));
     const status = count === goal && !correct
       ? "이 글자는 다른 기기에서 이미 익혔어요."
       : count === goal
