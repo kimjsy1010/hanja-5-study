@@ -1,9 +1,17 @@
 (() => {
   const {modes, goal, prepare, emptyProgress, parseProgress, streak, record, completed, makeQuestion} = HanjaQuiz;
-  const entries = prepare(window.HANJA_DATA);
-  const key = "hanja-five-progress-v1";
+  const levels = [
+    {id: "grade5", label: "5급", raw: window.HANJA_DATA},
+    ...Object.entries(window.HANJA_LEVEL_DATA ?? {}).map(([id, raw]) => ({id, label: raw[0].grade, raw})),
+  ].map(({id, label, raw}) => ({
+    id, label, entries: prepare(raw), legacy: id === "grade5",
+    key: id === "grade5" ? "hanja-five-progress-v1" : `hanja-progress-${id}-v1`,
+  }));
+  let level = null;
+  let entries = [];
   const app = document.getElementById("app");
   const home = document.getElementById("home-template");
+  const libraryButton = document.getElementById("open-library");
   const mastery = document.getElementById("header-mastery");
   const cloudPanel = document.getElementById("cloud-panel");
   const cloudStatus = document.getElementById("cloud-status");
@@ -13,10 +21,11 @@
   const cloudImport = document.getElementById("cloud-import");
   let progress = emptyProgress();
   let storageAvailable = true;
+  const memoryProgress = new Map();
   let account = {phase: "guest", uid: null};
   let cloud;
   let cloudBusy = false;
-  let view = "home";
+  let view = "grades";
   let question;
   let options = [];
   let busy = false;
@@ -36,13 +45,14 @@
     return element;
   }
 
-  function loadGuest() {
-    if (!storageAvailable) return null;
+  function loadGuest(target = level) {
+    if (!target) return null;
+    if (!storageAvailable) return memoryProgress.get(target.id) ?? null;
     try {
-      return parseProgress(localStorage.getItem(key), entries);
+      return parseProgress(localStorage.getItem(target.key), target.entries);
     } catch {
       storageAvailable = false;
-      return null;
+      return memoryProgress.get(target.id) ?? null;
     }
   }
 
@@ -57,12 +67,15 @@
       const count = await cloud.answer(active.mode, active.answer.id, correct);
       return {correct, count};
     }
+    const target = level;
     const update = () => {
-      refreshProgress();
-      const count = record(progress, active.mode, active.answer.id, correct);
+      const local = loadGuest(target) ?? emptyProgress();
+      const count = record(local, active.mode, active.answer.id, correct);
+      memoryProgress.set(target.id, local);
+      if (level === target && !account.uid) progress = local;
       if (storageAvailable) {
         try {
-          localStorage.setItem(key, JSON.stringify(progress));
+          localStorage.setItem(target.key, JSON.stringify(local));
         } catch {
           storageAvailable = false;
         }
@@ -70,12 +83,13 @@
       return {correct, count};
     };
     if (navigator.locks && location.protocol !== "file:") {
-      return navigator.locks.request(key, update);
+      return navigator.locks.request(target.key, update);
     }
     return update();
   }
 
   function updateHeader() {
+    libraryButton.hidden = !level;
     mastery.textContent = completed(entries, progress).length;
     const counts = progress.correctCounts;
     const total = counts.character + counts.meaning;
@@ -103,16 +117,65 @@
     element.focus();
   }
 
+  function showGrades(moveFocus = true) {
+    level = null;
+    entries = [];
+    question = null;
+    progress = emptyProgress();
+    const page = node("section", "grade-picker");
+    const intro = node("div", "grade-intro");
+    const heading = node("h1", "", "어떤 급수를 공부할까요?");
+    intro.append(heading, node("p", "", "대한검정회 선정한자를 급수별로 익혀요."));
+    const grid = node("div", "grade-grid");
+    for (const candidate of levels) {
+      const choice = button("", "grade-choice", () => selectLevel(candidate));
+      choice.dataset.grade = candidate.id;
+      choice.append(node("strong", "", candidate.label),
+        node("span", "", `${candidate.legacy ? "전체" : "신출"} ${candidate.entries.length}자`));
+      grid.append(choice);
+    }
+    const sources = node("a", "grade-sources", "자료 출처");
+    sources.href = "./data-sources.txt";
+    page.append(intro, grid, sources);
+    setView("grades", page);
+    cloudMessage.hidden = true;
+    cloud?.select(null);
+    updateCloudPanel();
+    if (moveFocus) focus(heading);
+  }
+
+  function selectLevel(candidate) {
+    level = candidate;
+    entries = candidate.entries;
+    question = null;
+    progress = account.uid ? emptyProgress() : loadGuest() ?? emptyProgress();
+    if (account.uid) account = {...account, phase: "loading"};
+    cloudMessage.hidden = true;
+    showHome();
+    cloud?.select(level);
+    updateCloudPanel();
+  }
+
+  function canStudy() {
+    return !["initializing", "loading", "error"].includes(account.phase);
+  }
+
   function showHome(moveFocus = true) {
     refreshProgress();
     const fragment = home.content.cloneNode(true);
+    const scope = level.legacy ? "선정한자" : "신출 한자";
+    fragment.querySelector(".hero-copy").prepend(button("급수 선택", "grade-back", () => showGrades()));
+    fragment.querySelector(".hero-label").textContent = `대한검정회 ${scope} ${entries.length}자`;
+    fragment.getElementById("hero-title").textContent = `${level.label} 학습`;
     fragment.getElementById("storage-note").replaceWith(storageNotice());
     for (const mode of Object.keys(modes)) {
       const count = completed(entries, progress, mode).length;
-      fragment.querySelector(`[data-progress="${mode}"]`).value = count;
+      const bar = fragment.querySelector(`[data-progress="${mode}"]`);
+      bar.max = entries.length;
+      bar.value = count;
       fragment.querySelector(`[data-progress-text="${mode}"]`).textContent = `${count} / ${entries.length}`;
       const start = fragment.querySelector(`[data-mode="${mode}"]`);
-      start.disabled = account.phase === "loading" || account.phase === "error";
+      start.disabled = !canStudy();
       if (count === entries.length) start.textContent = `${modes[mode].name} 완료`;
       start.addEventListener("click", () => nextQuestion(mode));
     }
@@ -122,11 +185,14 @@
 
   function exampleLine(entry) {
     const line = node("p", "examples");
+    if (entry.exampleType) line.append(node("span", "study-caption", entry.exampleType), " ");
     entry.examples.forEach((word, index) => {
       if (index) line.append(node("span", "separator", " · "));
       const item = node("span", "example");
       for (const char of word) {
-        if (char.normalize("NFKC") === entry.written) item.append(node("strong", "example-hanja", char));
+        if (char.normalize("NFKC") === entry.written || char === entry.exampleVariant) {
+          item.append(node("strong", "example-hanja", char));
+        }
         else item.append(char);
       }
       line.append(item);
@@ -143,6 +209,7 @@
     if (entry.radical) {
       identity.append(node("span", "study-radical", `부수 ${entry.radical} · ${entry.radicalName}`));
     }
+    if (entry.exampleVariant) identity.append(node("span", "study-radical", `예시 표기 ${entry.exampleVariant}`));
     content.append(identity);
     if (entry.hint) {
       const hint = node("p", "study-hint");
@@ -196,7 +263,7 @@
   }
 
   function nextQuestion(mode) {
-    if (account.phase === "loading" || account.phase === "error") {
+    if (!canStudy()) {
       showHome();
       return;
     }
@@ -224,7 +291,7 @@
       progressBar.value = count;
     };
     update();
-    toolbar.append(button("홈", "quiet", () => showHome()), node("h1", "", modes[mode].name), progressLabel);
+    toolbar.append(button("홈", "quiet", () => showHome()), node("h1", "", `${level.label} · ${modes[mode].name}`), progressLabel);
     const card = node("div", "question-card");
     const heading = node("h2", "", modes[mode].question);
     const clue = node("p", mode === "character" ? "clue glyph" : "clue",
@@ -255,8 +322,8 @@
     try {
       result = await storeAnswer(active, selected);
     } catch {
-      busy = false;
       if (view !== "quiz" || question !== active) return;
+      busy = false;
       const notice = node("p", "storage-note", account.uid
         ? "계정에 답을 저장하지 못했습니다. 인터넷 연결을 확인하고 보기를 다시 눌러 주세요."
         : "답을 기록하지 못했습니다. 보기를 다시 눌러 주세요.");
@@ -305,8 +372,8 @@
     focus(title);
   }
 
-  document.getElementById("brand").addEventListener("click", () => showHome());
-  document.getElementById("open-library").addEventListener("click", showLibrary);
+  document.getElementById("brand").addEventListener("click", () => showGrades());
+  libraryButton.addEventListener("click", showLibrary);
   window.addEventListener("keydown", event => {
     if (view !== "quiz" || answered || busy || event.repeat || event.altKey || event.ctrlKey ||
         event.metaKey || !/^[1-4]$/.test(event.key)) return;
@@ -314,7 +381,7 @@
     options[Number(event.key) - 1].click();
   });
   window.addEventListener("storage", event => {
-    if (event.key !== key && event.key !== null) return;
+    if (!level || (event.key !== level.key && event.key !== null)) return;
     refreshProgress();
     updateHeader();
     updateCloudPanel();
@@ -328,7 +395,7 @@
       initializing: "계정 연결을 확인하는 중…",
       guest: "다른 기기에서도 이어서 공부하려면 로그인하세요.",
       loading: "Google 계정의 학습 진도를 불러오는 중…",
-      ready: "Google 계정으로 학습 진도를 저장합니다.",
+      ready: "Google 계정으로 급수별 학습 진도를 저장합니다.",
       error: "계정의 학습 진도를 불러오지 못했습니다.",
       unavailable: "계정 연결을 시작하지 못했습니다. 새로고침 후 다시 시도해 주세요.",
     };
@@ -337,7 +404,7 @@
     cloudAction.disabled = !cloud || phase === "initializing" || cloudBusy;
     cloudRetry.hidden = phase !== "error";
     cloudRetry.disabled = cloudBusy;
-    const local = phase === "ready" && loadGuest();
+    const local = level && phase === "ready" && loadGuest();
     cloudImport.hidden = !local || !Object.keys(modes).some(mode =>
       Object.keys(local[mode]).some(id => progress[mode][id] === undefined));
     cloudImport.disabled = cloudBusy;
@@ -350,6 +417,7 @@
     if (next.progress) progress = next.progress;
     refreshProgress();
     updateCloudPanel();
+    if (!level) return;
     if (switched || view === "home") showHome(false);
     else if (view === "library") showLibrary();
     else updateHeader();
@@ -385,13 +453,14 @@
     const imported = await cloud.importGuest(loadGuest() ?? emptyProgress());
     return imported ? `이 브라우저의 학습 기록 ${imported}개를 가져왔습니다.` : "가져올 새 학습 기록이 없습니다.";
   }));
-  showHome(false);
+  showGrades(false);
   if (/^https?:$/.test(location.protocol)) {
     account = {phase: "initializing", uid: null};
     cloudPanel.hidden = false;
     updateCloudPanel();
-    import("./firebase-sync.js").then(({connectProgress}) => {
-      cloud = connectProgress(entries, onAccountChange);
+    import("./firebase-sync.js?v=grades-1").then(({connectProgress}) => {
+      cloud = connectProgress(onAccountChange);
+      cloud.select(level);
       updateCloudPanel();
     }).catch(() => onAccountChange({phase: "unavailable", uid: null}));
   }

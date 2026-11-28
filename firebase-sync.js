@@ -16,18 +16,27 @@ const db = getFirestore(app);
 const directions = ["character", "meaning"];
 const {emptyProgress, readCorrectCounts, goal, record} = globalThis.HanjaQuiz;
 
-export function connectProgress(entries, onChange) {
+export function connectProgress(entriesOrChange, legacyChange) {
+  const onChange = legacyChange ?? entriesOrChange;
+  let level = legacyChange ? {legacy: true, entries: entriesOrChange} : null;
+  let authReady = false;
   let uid = null;
   let revision = -1;
   let watch;
   let generation = 0;
 
-  function readDocument(snapshot) {
+  function referenceFor(owner, target) {
+    return target.legacy
+      ? doc(db, "studyProgress", owner)
+      : doc(db, "studyProgress", owner, "levels", target.id);
+  }
+
+  function readDocument(snapshot, target) {
     const source = snapshot.data();
     const progress = emptyProgress();
     progress.correctCounts = readCorrectCounts(source?.correctCounts);
     for (const direction of directions) {
-      for (const {id} of entries) {
+      for (const {id} of target.entries) {
         const count = source?.[direction]?.[id];
         if (Number.isInteger(count) && count >= 0 && count <= goal) progress[direction][id] = count;
       }
@@ -47,17 +56,23 @@ export function connectProgress(entries, onChange) {
     watch = undefined;
     uid = user?.uid ?? null;
     revision = -1;
+    if (!authReady) return;
     if (!uid) {
       onChange({phase: "guest", uid});
       return;
     }
+    const target = level;
+    if (!target) {
+      onChange({phase: "ready", uid});
+      return;
+    }
     onChange({phase: "loading", uid});
-    const reference = doc(db, "studyProgress", uid);
+    const reference = referenceFor(uid, target);
     try {
-      accept(readDocument(await getDocFromServer(reference)), current);
+      accept(readDocument(await getDocFromServer(reference), target), current);
       if (current !== generation) return;
       watch = onSnapshot(reference, snapshot => {
-        if (!snapshot.metadata.fromCache) accept(readDocument(snapshot), current);
+        if (!snapshot.metadata.fromCache) accept(readDocument(snapshot, target), current);
       }, () => {
         if (current === generation) onChange({phase: "error", uid});
       });
@@ -69,12 +84,13 @@ export function connectProgress(entries, onChange) {
   async function update(change) {
     const current = generation;
     const owner = uid;
-    if (!owner || auth.currentUser?.uid !== owner) throw new Error("No active study account.");
-    const reference = doc(db, "studyProgress", owner);
+    const target = level;
+    if (!target || !owner || auth.currentUser?.uid !== owner) throw new Error("No active study account.");
+    const reference = referenceFor(owner, target);
     const saved = await runTransaction(db, async transaction => {
       if (generation !== current || auth.currentUser?.uid !== owner) throw new Error("Study account changed.");
-      const {progress, revision: previous} = readDocument(await transaction.get(reference));
-      const {changed, result} = change(progress);
+      const {progress, revision: previous} = readDocument(await transaction.get(reference), target);
+      const {changed, result} = change(progress, target.entries);
       const next = previous + Number(changed);
       if (changed) transaction.set(reference, {...progress, revision: next});
       return {progress, revision: next, result};
@@ -84,7 +100,10 @@ export function connectProgress(entries, onChange) {
     return saved.result;
   }
 
-  onAuthStateChanged(auth, load);
+  onAuthStateChanged(auth, user => {
+    authReady = true;
+    return load(user);
+  });
   return {
     login() {
       const provider = new GoogleAuthProvider();
@@ -93,6 +112,11 @@ export function connectProgress(entries, onChange) {
     },
     logout() { return signOut(auth); },
     retry() { return load(auth.currentUser); },
+    select(target) {
+      if (level === target) return;
+      level = target;
+      return load(auth.currentUser);
+    },
     answer(direction, id, correct) {
       return update(progress => {
         const count = record(progress, direction, id, correct);
@@ -102,7 +126,7 @@ export function connectProgress(entries, onChange) {
       });
     },
     importGuest(guest) {
-      return update(progress => {
+      return update((progress, entries) => {
         let imported = 0;
         for (const direction of directions) {
           for (const {id} of entries) {

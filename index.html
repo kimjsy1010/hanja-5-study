@@ -6,25 +6,26 @@
   <meta name="theme-color" content="#172f42">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="한자 5급">
-  <meta name="description" content="대한검정회 5급 선정한자 250자의 훈음을 두 방향으로 익히는 학습 도구">
-  <title>한자 5급 마스터</title>
-  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="한자 마스터">
+  <meta name="description" content="대한검정회 5급부터 3급까지, 급수별 선정한자의 훈음을 두 방향으로 익히는 학습 도구">
+  <title>한자 마스터</title>
+  <link rel="manifest" href="./manifest.webmanifest?v=grades-1">
   <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=grades-1">
   <script defer src="./hanja-data.js"></script>
+  <script defer src="./hanja-levels.js"></script>
   <script defer src="./quiz.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./app.js?v=grades-1"></script>
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <button class="brand" id="brand" type="button" aria-label="한자 5급 마스터 홈">
+      <button class="brand" id="brand" type="button" aria-label="한자 마스터 급수 선택">
         <span class="brand-mark" aria-hidden="true">字</span>
-        <span>한자 5급 마스터</span>
+        <span>한자 마스터</span>
       </button>
-      <button class="library-link" id="open-library" type="button">내가 익힌 한자 <strong id="header-mastery">0</strong></button>
+      <button class="library-link" id="open-library" type="button" hidden>내가 익힌 한자 <strong id="header-mastery">0</strong></button>
     </div>
   </header>
   <section class="cloud-panel" id="cloud-panel" aria-label="학습 계정" hidden>
@@ -39,12 +40,12 @@
     </div>
   </section>
   <main id="app" class="app-shell"></main>
-  <noscript>한자 5급 마스터를 사용하려면 브라우저에서 자바스크립트를 켜 주세요.</noscript>
+  <noscript>한자 마스터를 사용하려면 브라우저에서 자바스크립트를 켜 주세요.</noscript>
   <template id="home-template">
     <section class="hero" aria-labelledby="hero-title">
       <div class="hero-copy">
-        <p class="hero-label">대한검정회 선정한자 250자</p>
-        <h1 id="hero-title" tabindex="-1">한자 5급<br>마스터</h1>
+        <p class="hero-label" id="level-scope"></p>
+        <h1 id="hero-title" tabindex="-1"></h1>
         <p class="hero-help">글자마다 3번 연속 맞혀 보세요.</p>
       </div>
       <div class="hero-art" aria-hidden="true"><span>成</span></div>
@@ -61,7 +62,7 @@
         <h2>한자 → 훈음</h2>
         <p>한자를 보고 뜻과 소리를 고르세요.</p>
         <div class="mode-progress"><span>익힌 한자</span><strong data-progress-text="character"></strong></div>
-        <progress data-progress="character" max="250" value="0" aria-label="한자에서 훈음 방향 학습 진도"></progress>
+        <progress data-progress="character" value="0" aria-label="한자에서 훈음 방향 학습 진도"></progress>
         <button class="primary" type="button" data-mode="character">한자 → 훈음 시작</button>
       </article>
       <article class="mode-card mode-green">
@@ -69,7 +70,7 @@
         <h2>훈음 → 한자</h2>
         <p>뜻과 소리를 보고 한자를 고르세요.</p>
         <div class="mode-progress"><span>익힌 한자</span><strong data-progress-text="meaning"></strong></div>
-        <progress data-progress="meaning" max="250" value="0" aria-label="훈음에서 한자 방향 학습 진도"></progress>
+        <progress data-progress="meaning" value="0" aria-label="훈음에서 한자 방향 학습 진도"></progress>
         <button class="primary" type="button" data-mode="meaning">훈음 → 한자 시작</button>
       </article>
     </section>

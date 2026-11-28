@@ -1,6 +1,6 @@
 {
-  "name": "한자 5급 마스터",
-  "short_name": "한자 5급",
+  "name": "한자 마스터",
+  "short_name": "한자 마스터",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
