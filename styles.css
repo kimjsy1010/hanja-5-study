@@ -51,6 +51,8 @@ button:disabled { cursor: default; }
 .grade-mastery { font-size: clamp(.875rem, 1.35vw, 1.05rem); color: var(--ink); }
 .grade-mastery b { color: var(--blue); font-size: 1.15em; font-variant-numeric: tabular-nums; }
 .grade-meter { margin-top: 3px; height: 6px; }
+.grade-reward { margin-top: 5px; color: var(--green); font-size: clamp(.875rem, 1.35vw, 1rem); word-break: keep-all; }
+.grade-reward b { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .grade-sources { justify-self: end; font-size: .85rem; color: var(--muted); }
 .grade-back { color: #fff; background: transparent; border: 1px solid #ffffff77; border-radius: 9px; min-height: 44px; padding: 5px 12px; margin-bottom: 12px; font-weight: 700; }
 .grade-back:hover { background: #ffffff21; }
